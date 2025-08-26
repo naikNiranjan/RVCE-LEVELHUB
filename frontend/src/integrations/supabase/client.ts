@@ -132,7 +132,7 @@ export const getEligibleJobs = async (studentId: string) => {
   try {
     console.log('🔍 Getting eligible jobs from backend for student:', studentId);
 
-    const response = await fetch(`http://localhost:8000/api/jobs/eligible/${studentId}`);
+    const response = await fetch(`http://localhost:8001/api/jobs/eligible/${studentId}`);
 
     if (!response.ok) {
       throw new Error(`Backend API error: ${response.status}`);
@@ -252,7 +252,8 @@ export const getStudentApplications = async (studentId) => {
 // Get all applications for admin
 export const getAllApplications = async () => {
   try {
-    const { data, error } = await supabase
+    // Get applications with job details first
+    const { data: applications, error: appsError } = await supabase
       .from('applications')
       .select(`
         *,
@@ -262,19 +263,37 @@ export const getAllApplications = async () => {
           role,
           location,
           ctc
-        ),
-        profiles (
-          id,
-          full_name,
-          usn,
-          branch,
-          cgpa
         )
       `)
       .order('applied_at', { ascending: false });
 
-    if (error) throw error;
-    return data;
+    if (appsError) throw appsError;
+
+    if (!applications || applications.length === 0) {
+      return [];
+    }
+
+    // Get student IDs from applications
+    const studentIds = [...new Set(applications.map(app => app.student_id))];
+
+    // Get student profiles
+    const { data: profiles, error: profilesError } = await supabase
+      .from('profiles')
+      .select('id, full_name, usn, branch, cgpa, email')
+      .in('id', studentIds);
+
+    if (profilesError) {
+      console.warn('Error getting profiles:', profilesError);
+      // Continue without profiles if there's an error
+    }
+
+    // Merge the data
+    const applicationsWithProfiles = applications.map(app => ({
+      ...app,
+      profiles: profiles?.find(profile => profile.id === app.student_id) || null
+    }));
+
+    return applicationsWithProfiles;
   } catch (error) {
     console.error('Error getting all applications:', error);
     throw error;

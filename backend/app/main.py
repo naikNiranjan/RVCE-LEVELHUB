@@ -22,7 +22,7 @@ app.add_middleware(
 # Include routers
 app.include_router(users.router, prefix="/api")
 app.include_router(applications.router, prefix="/api")
-app.include_router(jobs.router, prefix="/api/jobs")
+app.include_router(jobs.router, prefix="/api")
 
 # Mount static files for uploaded resumes
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
