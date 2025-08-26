@@ -204,7 +204,11 @@ export const AdminDashboard = () => {
                 <Users className="w-6 h-6" />
                 Manage Students
               </Button>
-              <Button variant="outline" className="h-20 flex flex-col gap-2">
+              <Button
+                variant="outline"
+                className="h-20 flex flex-col gap-2"
+                onClick={() => navigate("/applications")}
+              >
                 <FileText className="w-6 h-6" />
                 View Applications
               </Button>

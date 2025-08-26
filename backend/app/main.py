@@ -1,13 +1,10 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config.settings import settings
-from app.routes import users
-
-app = FastAPI(
-    title="Auixa Hackathon API",
-    description="Backend API for Auixa Hackathon project",
-    version="1.0.0"
-)
+from app.routes import users, applications
+from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
+from app.config.settings import settings
 
 # Configure CORS
 app.add_middleware(
@@ -20,6 +17,10 @@ app.add_middleware(
 
 # Include routers
 app.include_router(users.router, prefix="/api")
+app.include_router(applications.router, prefix="/api")
+
+# Mount static files for uploaded resumes
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 @app.get("/")
 async def root():

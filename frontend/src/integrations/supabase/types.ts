@@ -143,6 +143,57 @@ export type Database = {
         }
         Relationships: []
       }
+      applications: {
+        Row: {
+          id: string
+          job_id: string
+          student_id: string
+          status: string
+          applied_at: string
+          updated_at: string
+          cover_letter: string | null
+          resume_url: string | null
+          notes: string | null
+        }
+        Insert: {
+          id?: string
+          job_id: string
+          student_id: string
+          status?: string
+          applied_at?: string
+          updated_at?: string
+          cover_letter?: string | null
+          resume_url?: string | null
+          notes?: string | null
+        }
+        Update: {
+          id?: string
+          job_id?: string
+          student_id?: string
+          status?: string
+          applied_at?: string
+          updated_at?: string
+          cover_letter?: string | null
+          resume_url?: string | null
+          notes?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "applications_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "applications_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
     }
     Views: {
       [_ in never]: never

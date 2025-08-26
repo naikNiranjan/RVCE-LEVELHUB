@@ -1,18 +1,94 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, getEligibleJobs, applyToJob, getStudentApplications } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
-import { LogOut, Briefcase, BookOpen, TrendingUp, Calendar, CheckCircle, Clock } from "lucide-react";
+import { LogOut, Briefcase, BookOpen, TrendingUp, Calendar, CheckCircle, Clock, Send, FileText, Upload, X } from "lucide-react";
+import { format } from "date-fns";
 
 export const StudentDashboard = () => {
   const [loading, setLoading] = useState(false);
+  const [applyingToJob, setApplyingToJob] = useState<string | null>(null);
+  const [eligibleJobs, setEligibleJobs] = useState<any[]>([]);
+  const [myApplications, setMyApplications] = useState<any[]>([]);
+  const [studentProfile, setStudentProfile] = useState<any>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [coverLetter, setCoverLetter] = useState('');
+  const [showApplicationForm, setShowApplicationForm] = useState<string | null>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    loadStudentData();
+  }, []);
+
+  const loadStudentData = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Load student profile
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+
+      setStudentProfile(profile);
+
+      // Load eligible jobs
+      const jobs = await getEligibleJobs(user.id);
+      setEligibleJobs(jobs);
+
+      // Load student's applications
+      const applications = await getStudentApplications(user.id);
+      setMyApplications(applications);
+
+    } catch (error) {
+      console.error('Error loading student data:', error);
+    }
+  };
+
+  const handleApplyToJob = async (jobId: string) => {
+    if (!selectedFile) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Please select a resume file to upload",
+      });
+      return;
+    }
+
+    setApplyingToJob(jobId);
+    try {
+      await applyToJob(jobId, coverLetter, selectedFile);
+      toast({
+        title: "Success",
+        description: "Application submitted successfully!",
+        className: "bg-success text-success-foreground",
+      });
+
+      // Reset form
+      setSelectedFile(null);
+      setCoverLetter('');
+      setShowApplicationForm(null);
+
+      // Refresh data
+      loadStudentData();
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || "Failed to apply to job",
+      });
+    } finally {
+      setApplyingToJob(null);
+    }
+  };
 
   const handleLogout = async () => {
     setLoading(true);
@@ -37,28 +113,28 @@ export const StudentDashboard = () => {
 
   const stats = [
     {
-      title: "Profile Completion",
-      value: "85%",
-      icon: CheckCircle,
-      color: "text-green-600"
-    },
-    {
-      title: "Applications Sent",
-      value: "12",
+      title: "Eligible Jobs",
+      value: eligibleJobs.length.toString(),
       icon: Briefcase,
       color: "text-blue-600"
     },
     {
-      title: "Interviews Scheduled",
-      value: "3",
-      icon: Calendar,
-      color: "text-orange-600"
+      title: "Applications Sent",
+      value: myApplications.length.toString(),
+      icon: Send,
+      color: "text-green-600"
     },
     {
-      title: "Skill Assessment",
-      value: "78%",
+      title: "CGPA",
+      value: studentProfile?.cgpa ? `${studentProfile.cgpa}/10` : "N/A",
       icon: BookOpen,
       color: "text-purple-600"
+    },
+    {
+      title: "Branch",
+      value: studentProfile?.branch || "N/A",
+      icon: CheckCircle,
+      color: "text-orange-600"
     }
   ];
 
@@ -138,68 +214,102 @@ export const StudentDashboard = () => {
 
       {/* Main Content */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Upcoming Drives */}
+        {/* Eligible Job Openings */}
         <Card>
           <CardHeader>
-            <CardTitle>Company Drives</CardTitle>
-            <CardDescription>Current placement opportunities</CardDescription>
+            <CardTitle>Eligible Job Openings</CardTitle>
+            <CardDescription>Jobs that match your profile criteria</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {upcomingDrives.map((drive, index) => (
-                <div key={index} className="p-4 border rounded-lg">
-                  <div className="flex justify-between items-start mb-2">
-                    <div>
-                      <h3 className="font-semibold">{drive.company}</h3>
-                      <p className="text-sm text-muted-foreground">{drive.role}</p>
+            {eligibleJobs.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <Briefcase className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                <p>No eligible jobs at the moment</p>
+                <p className="text-sm">Jobs matching your criteria will appear here</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {eligibleJobs.map((job) => (
+                  <div key={job.id} className="p-4 border rounded-lg hover:bg-muted/50 transition-colors">
+                    <div className="flex justify-between items-start mb-3">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <h3 className="font-semibold text-lg">{job.company_name}</h3>
+                          <Badge variant="secondary">{job.job_type}</Badge>
+                        </div>
+                        <p className="text-muted-foreground mb-2">{job.role}</p>
+                        <div className="grid grid-cols-2 gap-2 text-sm text-muted-foreground">
+                          <span>📍 {job.location || 'Not specified'}</span>
+                          <span>💰 ₹{job.ctc ? `${job.ctc} LPA` : 'Not specified'}</span>
+                          <span>🎓 Min CGPA: {job.min_cgpa}</span>
+                          <span>📅 Deadline: {format(new Date(job.deadline), "MMM dd, yyyy")}</span>
+                        </div>
+                        {job.job_description && (
+                          <p className="text-sm mt-2 text-gray-600 line-clamp-2">
+                            {job.job_description}
+                          </p>
+                        )}
+                      </div>
                     </div>
-                    <Badge
-                      variant={
-                        drive.status === "Applied" ? "default" :
-                        drive.status === "Interview Scheduled" ? "secondary" : "outline"
-                      }
-                    >
-                      {drive.status}
-                    </Badge>
+                    <div className="flex justify-between items-center mt-4">
+                      <div className="text-xs text-green-600">
+                        ✅ Eligible based on your profile
+                      </div>
+                      <Button
+                        size="sm"
+                        onClick={() => handleApplyToJob(job.id)}
+                        disabled={applyingToJob === job.id}
+                      >
+                        {applyingToJob === job.id ? "Applying..." : "Apply Now"}
+                      </Button>
+                    </div>
                   </div>
-                  <div className="flex justify-between text-sm text-muted-foreground">
-                    <span>{drive.type}</span>
-                    <span>{drive.salary}</span>
-                    <span>Deadline: {drive.deadline}</span>
-                  </div>
-                  {drive.status === "Not Applied" && (
-                    <Button size="sm" className="w-full mt-3">
-                      Apply Now
-                    </Button>
-                  )}
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
 
-        {/* Skills Assessment */}
+        {/* My Applications */}
         <Card>
           <CardHeader>
-            <CardTitle>Skill Assessment</CardTitle>
-            <CardDescription>Your current skill levels</CardDescription>
+            <CardTitle>My Applications</CardTitle>
+            <CardDescription>Track your job applications</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {skills.map((skill, index) => (
-                <div key={index}>
-                  <div className="flex justify-between mb-1">
-                    <span className="text-sm font-medium">{skill.name}</span>
-                    <span className="text-sm text-muted-foreground">{skill.level}%</span>
+            {myApplications.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <FileText className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                <p>No applications yet</p>
+                <p className="text-sm">Apply to eligible jobs to see your applications here</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {myApplications.map((application) => (
+                  <div key={application.id} className="p-4 border rounded-lg">
+                    <div className="flex justify-between items-start mb-2">
+                      <div>
+                        <h3 className="font-semibold">{application.jobs?.company_name}</h3>
+                        <p className="text-sm text-muted-foreground">{application.jobs?.role}</p>
+                      </div>
+                      <Badge
+                        variant={
+                          application.status === "applied" ? "default" :
+                          application.status === "shortlisted" ? "secondary" :
+                          application.status === "selected" ? "default" : "destructive"
+                        }
+                      >
+                        {application.status}
+                      </Badge>
+                    </div>
+                    <div className="flex justify-between text-sm text-muted-foreground">
+                      <span>Applied: {format(new Date(application.applied_at), "MMM dd, yyyy")}</span>
+                      <span>Deadline: {application.jobs?.deadline ? format(new Date(application.jobs.deadline), "MMM dd, yyyy") : 'N/A'}</span>
+                    </div>
                   </div>
-                  <Progress value={skill.level} className="h-2" />
-                </div>
-              ))}
-            </div>
-            <Button variant="outline" className="w-full mt-4">
-              <BookOpen className="w-4 h-4 mr-2" />
-              Take Skill Test
-            </Button>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -249,36 +359,46 @@ export const StudentDashboard = () => {
       {/* Recent Activity */}
       <Card className="mt-6">
         <CardHeader>
-          <CardTitle>My Activity</CardTitle>
+          <CardTitle>Recent Activity</CardTitle>
           <CardDescription>Your recent placement activities</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
-            <div className="flex items-center gap-4 p-3 border-l-4 border-green-500 bg-green-50 dark:bg-green-950/20">
-              <CheckCircle className="w-5 h-5 text-green-600" />
-              <div>
-                <p className="font-medium">Application Submitted</p>
-                <p className="text-sm text-muted-foreground">Successfully applied to Google Software Engineer position</p>
-              </div>
-              <span className="text-xs text-muted-foreground ml-auto">1 day ago</span>
+          {myApplications.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <Clock className="w-12 h-12 mx-auto mb-4 opacity-50" />
+              <p>No recent activity</p>
+              <p className="text-sm">Start applying to jobs to see your activity here</p>
             </div>
-            <div className="flex items-center gap-4 p-3 border-l-4 border-blue-500 bg-blue-50 dark:bg-blue-950/20">
-              <Clock className="w-5 h-5 text-blue-600" />
-              <div>
-                <p className="font-medium">Interview Scheduled</p>
-                <p className="text-sm text-muted-foreground">Microsoft Data Analyst interview on Feb 25, 2024</p>
-              </div>
-              <span className="text-xs text-muted-foreground ml-auto">2 days ago</span>
+          ) : (
+            <div className="space-y-4">
+              {myApplications.slice(0, 3).map((application) => (
+                <div key={application.id} className="flex items-center gap-4 p-3 border-l-4 border-green-500 bg-green-50 dark:bg-green-950/20">
+                  <CheckCircle className="w-5 h-5 text-green-600" />
+                  <div>
+                    <p className="font-medium">Application Submitted</p>
+                    <p className="text-sm text-muted-foreground">
+                      Applied to {application.jobs?.company_name} - {application.jobs?.role}
+                    </p>
+                  </div>
+                  <span className="text-xs text-muted-foreground ml-auto">
+                    {format(new Date(application.applied_at), "MMM dd")}
+                  </span>
+                </div>
+              ))}
+              {eligibleJobs.length > 0 && (
+                <div className="flex items-center gap-4 p-3 border-l-4 border-blue-500 bg-blue-50 dark:bg-blue-950/20">
+                  <Briefcase className="w-5 h-5 text-blue-600" />
+                  <div>
+                    <p className="font-medium">New Eligible Jobs</p>
+                    <p className="text-sm text-muted-foreground">
+                      {eligibleJobs.length} job{eligibleJobs.length > 1 ? 's' : ''} match your profile
+                    </p>
+                  </div>
+                  <span className="text-xs text-muted-foreground ml-auto">Now</span>
+                </div>
+              )}
             </div>
-            <div className="flex items-center gap-4 p-3 border-l-4 border-purple-500 bg-purple-50 dark:bg-purple-950/20">
-              <BookOpen className="w-5 h-5 text-purple-600" />
-              <div>
-                <p className="font-medium">Skill Test Completed</p>
-                <p className="text-sm text-muted-foreground">Scored 78% in Python programming assessment</p>
-              </div>
-              <span className="text-xs text-muted-foreground ml-auto">3 days ago</span>
-            </div>
-          </div>
+          )}
         </CardContent>
       </Card>
     </div>
