@@ -1,0 +1,16 @@
+{
+  "supabase": {
+    "command": "cmd",
+    "args": [
+      "/c",
+      "pnpm",
+      "dlx",
+      "@supabase/mcp-server-supabase@latest",
+      "--project-ref=nuhyjfggcoueebijauvo"
+    ],
+    "env": {
+      "SUPABASE_ACCESS_TOKEN": "sbp_ba8dd33d9f495ca0c8d67c890074265d49183242"
+    },
+    "working_directory": null
+  }
+}
