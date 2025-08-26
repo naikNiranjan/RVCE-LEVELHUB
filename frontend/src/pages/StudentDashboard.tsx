@@ -7,7 +7,7 @@ import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import { supabase, getEligibleJobs, applyToJob, getStudentApplications } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
-import { LogOut, Briefcase, BookOpen, TrendingUp, Calendar, CheckCircle, Clock, Send, FileText, Upload, X } from "lucide-react";
+import { LogOut, Briefcase, BookOpen, TrendingUp, Calendar, CheckCircle, Clock, Send, FileText } from "lucide-react";
 import { format } from "date-fns";
 
 export const StudentDashboard = () => {
@@ -16,9 +16,6 @@ export const StudentDashboard = () => {
   const [eligibleJobs, setEligibleJobs] = useState<any[]>([]);
   const [myApplications, setMyApplications] = useState<any[]>([]);
   const [studentProfile, setStudentProfile] = useState<any>(null);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [coverLetter, setCoverLetter] = useState('');
-  const [showApplicationForm, setShowApplicationForm] = useState<string | null>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -54,30 +51,16 @@ export const StudentDashboard = () => {
   };
 
   const handleApplyToJob = async (jobId: string) => {
-    if (!selectedFile) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Please select a resume file to upload",
-      });
-      return;
-    }
-
     setApplyingToJob(jobId);
     try {
-      await applyToJob(jobId, coverLetter, selectedFile);
+      await applyToJob(jobId);
       toast({
         title: "Success",
         description: "Application submitted successfully!",
         className: "bg-success text-success-foreground",
       });
 
-      // Reset form
-      setSelectedFile(null);
-      setCoverLetter('');
-      setShowApplicationForm(null);
-
-      // Refresh data
+      // Refresh data to show updated applications
       loadStudentData();
     } catch (error: any) {
       toast({

@@ -1,10 +1,14 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config.settings import settings
-from app.routes import users, applications
+from app.routes import users, applications, jobs
 from fastapi.staticfiles import StaticFiles
-from fastapi.middleware.cors import CORSMiddleware
-from app.config.settings import settings
+
+app = FastAPI(
+    title="Placement Management API",
+    description="Backend API for placement management system",
+    version="1.0.0"
+)
 
 # Configure CORS
 app.add_middleware(
@@ -18,6 +22,7 @@ app.add_middleware(
 # Include routers
 app.include_router(users.router, prefix="/api")
 app.include_router(applications.router, prefix="/api")
+app.include_router(jobs.router, prefix="/api/jobs")
 
 # Mount static files for uploaded resumes
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")

@@ -10,6 +10,24 @@ if (!supabaseUrl || !supabaseAnonKey) {
 
 export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey);
 
+// Migration function to apply RLS policies (run once)
+export const applyRLSMigration = async () => {
+  try {
+    console.log('🔧 Applying RLS migration...');
+
+    // Note: This would require service role key for DDL operations
+    // For now, this is a placeholder - you'll need to apply the migration manually in Supabase dashboard
+
+    console.log('⚠️  Please apply the RLS migration manually in Supabase dashboard');
+    console.log('📁 Migration file: frontend/supabase/migrations/20240826054000_setup_jobs_rls.sql');
+
+    return { success: false, message: 'Manual migration required' };
+  } catch (error) {
+    console.error('❌ Error applying RLS migration:', error);
+    throw error;
+  }
+};
+
 export const signUpUser = async (email, password, userData) => {
   const { data, error } = await supabase.auth.signUp({
     email,
@@ -109,9 +127,38 @@ export const checkJobEligibility = async (studentProfile, job) => {
   return { eligible: true };
 };
 
-// Get eligible jobs for a student
-export const getEligibleJobs = async (studentId) => {
+// Get eligible jobs for a student using backend API
+export const getEligibleJobs = async (studentId: string) => {
   try {
+    console.log('🔍 Getting eligible jobs from backend for student:', studentId);
+
+    const response = await fetch(`http://localhost:8000/api/jobs/eligible/${studentId}`);
+
+    if (!response.ok) {
+      throw new Error(`Backend API error: ${response.status}`);
+    }
+
+    const result = await response.json();
+
+    if (!result.success) {
+      throw new Error(result.message || 'Failed to get eligible jobs');
+    }
+
+    console.log('✅ Backend returned eligible jobs:', result.data);
+    return result.data || [];
+  } catch (error) {
+    console.error('❌ Error getting eligible jobs from backend:', error);
+    // Fallback to frontend filtering if backend fails
+    console.log('🔄 Falling back to frontend filtering...');
+    return getEligibleJobsFrontend(studentId);
+  }
+};
+
+// Fallback function for frontend filtering (if backend is down)
+const getEligibleJobsFrontend = async (studentId: string) => {
+  try {
+    console.log('🔍 Frontend fallback: Getting eligible jobs for student:', studentId);
+
     // Get student profile
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
@@ -120,6 +167,8 @@ export const getEligibleJobs = async (studentId) => {
       .single();
 
     if (profileError) throw profileError;
+
+    console.log('👤 Student profile:', profile);
 
     // Get all active jobs
     const { data: jobs, error: jobsError } = await supabase
@@ -130,73 +179,37 @@ export const getEligibleJobs = async (studentId) => {
 
     if (jobsError) throw jobsError;
 
+    console.log('💼 All active jobs:', jobs);
+
     // Filter eligible jobs
     const eligibleJobs = [];
     for (const job of jobs) {
       const eligibility = await checkJobEligibility(profile, job);
+      console.log(`🔍 Job: ${job.company_name} - ${job.role}, Eligible: ${eligibility.eligible}`, eligibility.reason);
       if (eligibility.eligible) {
         eligibleJobs.push(job);
       }
     }
 
+    console.log('✅ Final eligible jobs (frontend):', eligibleJobs);
     return eligibleJobs;
   } catch (error) {
-    console.error('Error getting eligible jobs:', error);
+    console.error('❌ Error in frontend fallback:', error);
     throw error;
   }
 };
 
-// Apply to a job with resume upload
-export const applyToJob = async (jobId: string, coverLetter = '', resumeFile?: File) => {
+// Apply to a job (simplified for now)
+export const applyToJob = async (jobId: string) => {
   try {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Not authenticated');
 
-    // If no resume file, use traditional Supabase approach
-    if (!resumeFile) {
-      const { data, error } = await supabase
-        .from('applications')
-        .insert([{
-          job_id: jobId,
-          student_id: user.id,
-          cover_letter: coverLetter,
-          resume_url: ''
-        }])
-        .select();
-
-      if (error) throw error;
-      return data;
-    }
-
-    // Use FastAPI backend for file upload
-    const formData = new FormData();
-    formData.append('job_id', jobId);
-    formData.append('student_id', user.id);
-    if (coverLetter) {
-      formData.append('cover_letter', coverLetter);
-    }
-    formData.append('resume', resumeFile);
-
-    const response = await fetch('http://localhost:8000/api/applications', {
-      method: 'POST',
-      body: formData,
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.detail || 'Failed to submit application');
-    }
-
-    const result = await response.json();
-
-    // Also save to Supabase for consistency
     const { data, error } = await supabase
       .from('applications')
       .insert([{
         job_id: jobId,
         student_id: user.id,
-        cover_letter: coverLetter,
-        resume_url: result.data.resume_url,
         status: 'applied'
       }])
       .select();
