@@ -1,0 +1,14 @@
+# Ignore rules for backend
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+.venv/
+env/
+venv/
+.mypy_cache/
+.pytest_cache/
+.ipynb_checkpoints
+uploads/
+requirements.txt.bak

@@ -5,9 +5,9 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { getAllApplications } from "@/integrations/supabase/client";
+import { supabase } from "@/integrations/supabase/client";
 import { useNavigate, useLocation } from "react-router-dom";
-import { ArrowLeft, Users, X, CheckSquare, Square } from "lucide-react";
+import { ArrowLeft, Users, X, CheckSquare, Square, FileText, Download, ExternalLink } from "lucide-react";
 import { format } from "date-fns";
 
 export const Applications = () => {
@@ -26,24 +26,135 @@ export const Applications = () => {
 
   useEffect(() => {
     loadApplications();
+
+    // Set up real-time subscription for applications
+    const subscription = supabase
+      .channel('applications-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'applications'
+        },
+        (payload) => {
+          console.log('🔄 Real-time application update:', payload);
+          console.log('📊 Event type:', payload.eventType);
+          console.log('📝 New record:', payload.new);
+          console.log('📝 Old record:', payload.old);
+
+          // Refresh data when there's a change
+          loadApplications();
+
+          // Show toast notification for real-time updates
+          const eventMessages = {
+            'INSERT': 'New application received',
+            'UPDATE': 'Application status updated',
+            'DELETE': 'Application removed'
+          };
+
+          toast({
+            title: "Data Updated",
+            description: eventMessages[payload.eventType] || "Application data changed",
+            className: "bg-blue-50 text-blue-900 border-blue-200",
+          });
+        }
+      )
+      .subscribe((status) => {
+        console.log('🔌 Subscription status:', status);
+        if (status === 'SUBSCRIBED') {
+          console.log('✅ Successfully subscribed to real-time updates');
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error('❌ Subscription error');
+          toast({
+            variant: "destructive",
+            title: "Connection Error",
+            description: "Real-time updates may not work properly",
+          });
+        }
+      });
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   const loadApplications = async () => {
     try {
-      // Try backend API first - get all applications
-      const backendResponse = await fetch('http://localhost:8001/api/applications/all');
-      if (backendResponse.ok) {
-        const backendData = await backendResponse.json();
-        if (backendData.success) {
-          setApplications(backendData.data);
-          return;
-        }
+      // Use Supabase with manual joins since foreign key relationship doesn't exist
+      const { data: applicationsData, error: appsError } = await supabase
+        .from('applications')
+        .select('*')
+        .order('applied_at', { ascending: false });
+
+      if (appsError) {
+        console.error('Applications query error:', appsError);
+        throw appsError;
       }
 
-      // Fallback to Supabase if backend is not available
-      console.warn('Backend not available, using Supabase fallback');
-      const data = await getAllApplications();
-      setApplications(data);
+      if (!applicationsData || applicationsData.length === 0) {
+        setApplications([]);
+        return;
+      }
+
+      // Get unique job IDs and student IDs
+      const jobIds = [...new Set(applicationsData.map(app => app.job_id))];
+      const studentIds = [...new Set(applicationsData.map(app => app.student_id))];
+
+      // Fetch jobs data
+      const { data: jobsData, error: jobsError } = await supabase
+        .from('jobs')
+        .select('id, company_name, role, location, ctc, deadline, job_type, min_cgpa, max_active_backlogs, eligible_branches, job_description, process_details')
+        .in('id', jobIds);
+
+      if (jobsError) {
+        console.error('Jobs query error:', jobsError);
+        toast({
+          variant: "destructive",
+          title: "Warning",
+          description: "Unable to load job details. Some job information may be missing.",
+        });
+        // Continue without jobs data
+      }
+
+      // Fetch profiles data
+      const { data: profilesData, error: profilesError } = await supabase
+        .from('profiles')
+        .select('id, full_name, usn, branch, cgpa, email, tenth, twelfth, date_of_birth, graduation_year, active_backlog, aadhar_card')
+        .in('id', studentIds);
+
+      if (profilesError) {
+        console.error('Profiles query error:', profilesError);
+        toast({
+          variant: "destructive",
+          title: "Warning",
+          description: "Unable to load student profile data. Some information may be missing.",
+        });
+        // Continue without profiles data
+      }
+
+      // Create lookup maps
+      const jobsMap = new Map(jobsData?.map(job => [job.id, job]) || []);
+      const profilesMap = new Map(profilesData?.map(profile => [profile.id, profile]) || []);
+
+      // Combine the data
+      const transformedData = applicationsData.map(app => ({
+        ...app,
+        jobs: jobsMap.get(app.job_id) || null,
+        profiles: profilesMap.get(app.student_id) || null
+      }));
+
+      console.log('🔍 Transformed applications data:', transformedData.map(app => ({
+        id: app.id,
+        student_id: app.student_id,
+        student_name: app.profiles?.full_name || 'N/A',
+        job_company: app.jobs?.company_name || 'N/A',
+        has_profile: !!app.profiles,
+        has_job: !!app.jobs
+      })));
+
+      setApplications(transformedData);
+      console.log('✅ Loaded applications with complete data:', transformedData.length);
     } catch (error) {
       console.error('Error loading applications:', error);
       toast({
@@ -486,23 +597,94 @@ export const Applications = () => {
                         />
                         <div className="flex-1">
                           <div className="flex items-center gap-3 mb-2">
-                            <h3 className="font-semibold text-lg">{application.profiles?.full_name}</h3>
-                            <Badge variant="outline">{application.profiles?.usn}</Badge>
-                            <Badge variant="outline">{application.profiles?.branch}</Badge>
+                            <h3 className="font-semibold text-lg">
+                              {application.profiles?.full_name || `Student ${application.student_id?.slice(0, 8)}`}
+                            </h3>
+                            <Badge variant="outline">{application.profiles?.usn || 'N/A'}</Badge>
+                            <Badge variant="outline">{application.profiles?.branch || 'N/A'}</Badge>
                           </div>
                           <p className="text-muted-foreground mb-1">
-                            Applied to: <span className="font-medium">{application.jobs?.company_name} - {application.jobs?.role}</span>
+                            Applied to: <span className="font-medium">
+                              {application.jobs?.company_name || 'Unknown Company'} - {application.jobs?.role || 'Unknown Role'}
+                            </span>
                           </p>
-                          <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-sm text-muted-foreground mb-3">
-                            <span>📧 {application.profiles?.email}</span>
-                            <span>🎓 CGPA: {application.profiles?.cgpa}</span>
+                          <div className="flex items-center gap-4 text-sm text-muted-foreground mb-3">
                             <span>📅 Applied: {format(new Date(application.applied_at), "MMM dd, yyyy")}</span>
                           </div>
-                          {application.cover_letter && (
-                            <p className="text-sm text-gray-600 mt-2">
-                              <strong>Cover Letter:</strong> {application.cover_letter}
-                            </p>
-                          )}
+
+                          {/* Job Details */}
+                          <div className="bg-muted/50 p-3 rounded-lg mb-3">
+                            <h4 className="font-medium text-sm mb-2">Job Details:</h4>
+                            <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+                              <span>💰 CTC: ₹{application.jobs?.ctc ? `${application.jobs.ctc} LPA` : 'Not specified'}</span>
+                              <span>🎓 Min CGPA: {application.jobs?.min_cgpa || 'N/A'}</span>
+                              <span>📄 Max Backlogs: {application.jobs?.max_active_backlogs !== undefined ? application.jobs.max_active_backlogs : 'N/A'}</span>
+                              <span>🏷️ Type: {application.jobs?.job_type || 'N/A'}</span>
+                            </div>
+                            {application.jobs?.job_description && (
+                              <p className="text-xs mt-2 text-muted-foreground">
+                                <strong>Description:</strong> {application.jobs.job_description.length > 100
+                                  ? `${application.jobs.job_description.substring(0, 100)}...`
+                                  : application.jobs.job_description}
+                              </p>
+                            )}
+                          </div>
+
+                          {/* Application Content */}
+                          <div className="space-y-2">
+                            {application.cover_letter && (
+                              <div className="bg-blue-50 dark:bg-blue-950/20 p-3 rounded-lg">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <FileText className="w-4 h-4 text-blue-600" />
+                                  <span className="text-sm font-medium text-blue-600">Cover Letter</span>
+                                </div>
+                                <p className="text-sm text-gray-700 dark:text-gray-300">
+                                  {application.cover_letter.length > 200
+                                    ? `${application.cover_letter.substring(0, 200)}...`
+                                    : application.cover_letter}
+                                </p>
+                              </div>
+                            )}
+
+                            {application.resume_url && (
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm text-muted-foreground">Resume:</span>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={async () => {
+                                    try {
+                                      const resumeUrl = `http://localhost:8001${application.resume_url}`;
+                                      console.log('Opening resume:', resumeUrl);
+
+                                      // Check if file exists first
+                                      const response = await fetch(resumeUrl, { method: 'HEAD' });
+                                      if (response.ok) {
+                                        window.open(resumeUrl, '_blank');
+                                      } else {
+                                        toast({
+                                          variant: "destructive",
+                                          title: "Resume Not Found",
+                                          description: "The resume file could not be found or accessed.",
+                                        });
+                                      }
+                                    } catch (error) {
+                                      console.error('Resume download error:', error);
+                                      toast({
+                                        variant: "destructive",
+                                        title: "Download Failed",
+                                        description: "Unable to download resume. Please try again later.",
+                                      });
+                                    }
+                                  }}
+                                  className="h-7"
+                                >
+                                  <Download className="w-3 h-3 mr-1" />
+                                  Download
+                                </Button>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>

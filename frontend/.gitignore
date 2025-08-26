@@ -18,6 +18,15 @@ dist-ssr
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
+
+# Additional frontend ignore rules
+node_modules/
+dist/
+.env
+.env.local
+.env.*.local
+.eslintcache
+coverage/
 .idea
 .DS_Store
 *.suo

@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,6 +17,7 @@ export const StudentDashboard = () => {
   const [loading, setLoading] = useState(false);
   const [applyingToJob, setApplyingToJob] = useState<string | null>(null);
   const [eligibleJobs, setEligibleJobs] = useState<any[]>([]);
+  const [appliedJobsMap, setAppliedJobsMap] = useState<Map<string, any>>(new Map());
   const [myApplications, setMyApplications] = useState<any[]>([]);
   const [studentProfile, setStudentProfile] = useState<any>(null);
   const [showApplicationModal, setShowApplicationModal] = useState(false);
@@ -47,11 +47,27 @@ export const StudentDashboard = () => {
 
       // Load eligible jobs
       const jobs = await getEligibleJobs(user.id);
-      setEligibleJobs(jobs);
 
       // Load student's applications
       const applications = await getStudentApplications(user.id);
       setMyApplications(applications);
+
+      // Create a set of job IDs that the student has already applied to
+      const appliedJobIds = new Set(applications.map(app => app.job_id));
+
+      // Filter eligible jobs to exclude those already applied to
+      const availableJobs = jobs.filter(job => !appliedJobIds.has(job.id));
+      setEligibleJobs(availableJobs);
+
+      // Create a map of applied job statuses for display
+      const appliedJobsMap = new Map();
+      applications.forEach(app => {
+        appliedJobsMap.set(app.job_id, {
+          status: app.status,
+          appliedDate: app.applied_at
+        });
+      });
+      setAppliedJobsMap(appliedJobsMap);
 
     } catch (error) {
       console.error('Error loading student data:', error);
@@ -257,6 +273,52 @@ export const StudentDashboard = () => {
             )}
           </CardContent>
         </Card>
+
+        {/* Applied Jobs */}
+        {Array.from(appliedJobsMap.entries()).length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Applied Jobs</CardTitle>
+              <CardDescription>Jobs you've already applied to</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {Array.from(appliedJobsMap.entries()).map(([jobId, applicationData]) => {
+                  const appliedJob = myApplications.find(app => app.job_id === jobId);
+                  return (
+                    <div key={jobId} className="p-4 border rounded-lg bg-gray-50 dark:bg-gray-800">
+                      <div className="flex justify-between items-start mb-3">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-1">
+                            <h3 className="font-semibold text-lg">{appliedJob?.jobs?.company_name}</h3>
+                            <Badge
+                              variant={
+                                applicationData.status === "applied" ? "secondary" :
+                                applicationData.status === "shortlisted" ? "default" :
+                                applicationData.status === "selected" ? "default" : "destructive"
+                              }
+                            >
+                              {applicationData.status}
+                            </Badge>
+                          </div>
+                          <p className="text-muted-foreground mb-2">{appliedJob?.jobs?.role}</p>
+                          <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-sm text-muted-foreground">
+                            <span>📍 {appliedJob?.jobs?.location || 'Not specified'}</span>
+                            <span>💰 ₹{appliedJob?.jobs?.ctc ? `${appliedJob.ctc} LPA` : 'Not specified'}</span>
+                            <span>📅 Applied: {format(new Date(applicationData.appliedDate), "MMM dd, yyyy")}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-xs text-green-600">
+                        ✅ Already applied - {applicationData.status}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* My Applications */}
         <Card>
