@@ -20,6 +20,15 @@ export type Database = {
           email: string
           role: string
           full_name: string | null
+          usn: string | null
+          branch: string | null
+          cgpa: number | null
+          tenth: number | null
+          twelfth: number | null
+          date_of_birth: string | null
+          graduation_year: number | null
+          active_backlog: boolean | null
+          aadhar_card: string | null
           created_at: string
           updated_at: string
         }
@@ -28,6 +37,15 @@ export type Database = {
           email: string
           role?: string
           full_name?: string | null
+          usn?: string | null
+          branch?: string | null
+          cgpa?: number | null
+          tenth?: number | null
+          twelfth?: number | null
+          date_of_birth?: string | null
+          graduation_year?: number | null
+          active_backlog?: boolean | null
+          aadhar_card?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -36,6 +54,90 @@ export type Database = {
           email?: string
           role?: string
           full_name?: string | null
+          usn?: string | null
+          branch?: string | null
+          cgpa?: number | null
+          tenth?: number | null
+          twelfth?: number | null
+          date_of_birth?: string | null
+          graduation_year?: number | null
+          active_backlog?: boolean | null
+          aadhar_card?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      jobs: {
+        Row: {
+          id: string
+          company_name: string
+          job_type: string
+          role: string
+          location: string | null
+          stipend: number | null
+          ctc: number | null
+          joining_bonus: number | null
+          retention_bonus: number | null
+          eligible_branches: string[] | null
+          min_cgpa: number
+          max_active_backlogs: number
+          gender_preference: string | null
+          job_description: string | null
+          drive_date: string | null
+          assessment_date: string | null
+          deadline: string
+          process_details: string | null
+          status: string
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          company_name: string
+          job_type: string
+          role: string
+          location?: string | null
+          stipend?: number | null
+          ctc?: number | null
+          joining_bonus?: number | null
+          retention_bonus?: number | null
+          eligible_branches?: string[] | null
+          min_cgpa?: number
+          max_active_backlogs?: number
+          gender_preference?: string | null
+          job_description?: string | null
+          drive_date?: string | null
+          assessment_date?: string | null
+          deadline: string
+          process_details?: string | null
+          status?: string
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          company_name?: string
+          job_type?: string
+          role?: string
+          location?: string | null
+          stipend?: number | null
+          ctc?: number | null
+          joining_bonus?: number | null
+          retention_bonus?: number | null
+          eligible_branches?: string[] | null
+          min_cgpa?: number
+          max_active_backlogs?: number
+          gender_preference?: string | null
+          job_description?: string | null
+          drive_date?: string | null
+          assessment_date?: string | null
+          deadline?: string
+          process_details?: string | null
+          status?: string
+          created_by?: string | null
           created_at?: string
           updated_at?: string
         }

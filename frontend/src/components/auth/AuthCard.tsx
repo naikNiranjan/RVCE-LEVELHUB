@@ -24,6 +24,7 @@ export const AuthCard = ({ type, onSubmit }: AuthCardProps) => {
   const [password, setPassword] = useState("");
   
   // Signup fields
+  const [fullName, setFullName] = useState("");
   const [usn, setUsn] = useState("");
   const [branch, setBranch] = useState("");
   const [cgpa, setCgpa] = useState("");
@@ -56,7 +57,7 @@ export const AuthCard = ({ type, onSubmit }: AuthCardProps) => {
       }
     } else {
       // Validate signup fields
-      if (!email || !password || !usn || !branch || !cgpa || !tenth || !twelfth || !dateOfBirth || !graduationYear || !aadharCard) {
+      if (!email || !password || !fullName || !usn || !branch || !cgpa || !tenth || !twelfth || !dateOfBirth || !graduationYear || !aadharCard) {
         toast({
           variant: "destructive",
           title: "Error",
@@ -70,11 +71,11 @@ export const AuthCard = ({ type, onSubmit }: AuthCardProps) => {
     try {
       const formData = type === "login" 
         ? { email, password }
-        : { 
-            email, password, usn, branch, cgpa: parseFloat(cgpa), 
+        : {
+            email, password, fullName, usn, branch, cgpa: parseFloat(cgpa),
             tenth: parseFloat(tenth), twelfth: parseFloat(twelfth),
             dateOfBirth, graduationYear: parseInt(graduationYear),
-            activeBacklog, aadharCard 
+            activeBacklog, aadharCard
           };
       
       await onSubmit(formData);
@@ -132,7 +133,18 @@ export const AuthCard = ({ type, onSubmit }: AuthCardProps) => {
             {type === "signup" && (
               <>
                 <div className="space-y-2">
-                  <Label htmlFor="usn">USN</Label>
+                  <Label htmlFor="fullName">Full Name *</Label>
+                  <Input
+                    id="fullName"
+                    placeholder="Enter your full name"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="usn">USN *</Label>
                   <Input
                     id="usn"
                     placeholder="Enter your USN"

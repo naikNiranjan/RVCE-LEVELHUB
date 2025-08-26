@@ -1,3 +1,4 @@
+
 import { AuthCard } from "@/components/auth/AuthCard";
 import { signUpUser } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -12,12 +13,26 @@ export const SignupPage = () => {
   const handleSignup = async (data: any) => {
     setLoading(true);
     try {
-      const authData = await signUpUser(data.email, data.password, data);
+      // Prepare student data for signup
+      const studentData = {
+        fullName: data.fullName,
+        usn: data.usn,
+        branch: data.branch,
+        cgpa: data.cgpa,
+        tenth: data.tenth,
+        twelfth: data.twelfth,
+        dateOfBirth: data.dateOfBirth ? data.dateOfBirth.toISOString().split('T')[0] : null,
+        graduationYear: data.graduationYear,
+        activeBacklog: data.activeBacklog,
+        aadharCard: data.aadharCard
+      };
+
+      const authData = await signUpUser(data.email, data.password, studentData);
 
       if (authData.user) {
         toast({
           title: "Success",
-          description: "Account created successfully! Please check your email to verify your account.",
+          description: "Account created successfully! All your information has been saved. Please check your email to verify your account.",
           className: "bg-success text-success-foreground",
         });
         navigate("/login");
